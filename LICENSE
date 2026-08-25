@@ -1,0 +1,21 @@
+IPMI风扇控制（IPMIFanControl）
+==========================================
+作者：小H酱
+
+声明：
+1. 本套件通过IPMI 监控风扇转速和温度信息，支持超微（Supermicro）主板IPMI。
+2. 本套件不会破坏原有系统环境，安装/卸载不影响其他套件。
+
+功能说明：
+- 查询当前所有风扇转速、当前系统温度
+- 提供四种风扇模式：Standard、Full Speed、Optimal、Heavy I/O
+- Full模式下可自定义设置每个风扇区域的转速百分比
+
+安装流程：
+0. 确保群晖已安装 SimplePermissionManager 套件。
+1. 安装本套件时，在 SimplePermissionManager 中授权本套件以 root 权限启动。
+2. 在套件中心启用本套件。
+
+注意事项：
+- 本套件依赖 ipmitool 命令，请确保系统已安装 ipmitool。
+- 风扇控制仅适用于支持 IPMI 的超微（Supermicro）主板。

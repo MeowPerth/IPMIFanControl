@@ -1,0 +1,7 @@
+# 构建产物（可用 ./build_spk.sh 重新生成）
+*.spk
+
+# 临时文件
+*.tmp
+*.swp
+.DS_Store

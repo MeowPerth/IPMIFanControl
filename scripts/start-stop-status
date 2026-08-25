@@ -1,0 +1,11 @@
+#!/bin/sh
+# IPMI Fan Control - start-stop-status script
+# No background service needed — API runs via CGI script (api.cgi).
+
+case $1 in
+    start)  exit 0 ;;
+    stop)   exit 0 ;;
+    status) exit 0 ;;  # Always "running" since CGI handles everything
+    killall) exit 0 ;;
+    log)    exit 0 ;;
+esac
