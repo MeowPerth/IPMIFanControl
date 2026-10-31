@@ -1,0 +1,4 @@
+#!/bin/sh
+# 薄壳：转发到 installer 同名函数（spksrc 惯例）
+. "$(dirname "$0")/installer"
+preupgrade

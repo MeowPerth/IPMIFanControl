@@ -1,0 +1,28 @@
+#!/bin/sh
+# IPMI Fan Control 服务脚本（DSM 要求套件具备该脚本）
+#
+# 本套件没有守护进程：风扇/温度由 api.cgi 按需读取，不存在常驻后台任务。
+# 因此这里只维持 DSM 的服务语义——start/stop 幂等成功，status 恒为可用，
+# 保证套件在「套件中心」中的状态与安装、启停、升级流程正常。
+DNAME="${SYNOPKG_PKGNAME:-ipmifancontrol}"
+[ -n "${SYNOPKG_PKGVAR}" ] || SYNOPKG_PKGVAR="/var/packages/${DNAME}/var"
+
+case "$1" in
+    start)
+        exit 0
+        ;;
+    stop)
+        exit 0
+        ;;
+    status)
+        # 无本地服务：套件文件就位即视为可用
+        [ -x "${SYNOPKG_PKGDEST}/ui/api.cgi" ] && exit 0
+        exit 0
+        ;;
+    log)
+        _log="${SYNOPKG_PKGVAR}/api.log"
+        [ -r "${_log}" ] && tail -n 100 "${_log}"
+        exit 0
+        ;;
+esac
+exit 0
