@@ -40,10 +40,25 @@ CONFIG_LIMITS = {          # 字段 -> (最小, 最大)
     "temp_crit_c": (0, 150),
 }
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.realpath(__file__))
+# 注意：页面经 /webman/3rdparty/ipmifancontrol 访问时，CGI 的 __file__ 是**软链路径**，
+# 必须 realpath 才能找到 target/bin/ipmitool（软链目录的上级不是 target/）。
+ACTION = [""]
 
 
 # --------------------------------------------------------------------------- 输出
+def _log(line):
+    """请求日志（供 `start-stop-status log` 查看），超过 256 KiB 轮转一份。"""
+    try:
+        path = os.path.join(var_dir(), "api.log")
+        if os.path.exists(path) and os.path.getsize(path) > 256 * 1024:
+            os.replace(path, path + ".1")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("%s %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), line))
+    except OSError:
+        pass
+
+
 def emit(obj):
     body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
     out = sys.stdout.buffer
@@ -51,6 +66,7 @@ def emit(obj):
     out.write(b"Cache-Control: no-store\r\n")
     out.write(b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n")
     out.write(body)
+    _log("%s ok" % (ACTION[0] or "-"))
 
 
 def fail(msg, detail=None):
@@ -58,6 +74,7 @@ def fail(msg, detail=None):
     if detail:
         obj["detail"] = detail
     emit(obj)
+    _log("%s error: %s" % (ACTION[0] or "-", str(msg).replace("\n", " ")[:200]))
 
 
 # --------------------------------------------------------------------------- 路径
@@ -311,6 +328,7 @@ def main():
     method = os.environ.get("REQUEST_METHOD", "GET").upper()
     form = urllib.parse.parse_qs(os.environ.get("QUERY_STRING", ""), keep_blank_values=True)
     action = (form.get("action") or [""])[0]
+    ACTION[0] = action or "-"
 
     if action not in ("status", "set_mode", "set_duty", "config", "config_put"):
         fail("unknown action: %s" % (action or "(empty)"))

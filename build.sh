@@ -9,7 +9,7 @@ cd "$ROOT"
 
 PKG_NAME="ipmifancontrol"
 VERSION="1.0.0"
-BUILD="0002"
+BUILD="0003"
 # 内置 ipmitool 为 x86-64 ELF（动态链接 libc），因此只声明 x86 平台
 ARCH="apollolake avoton braswell broadwell broadwellnk broadwellnkv2 broadwellntbap bromolow cedarview denverton epyc7002 geminilake geminilakenk grantley kvmx64 purley x86_64"
 SPK_ARCH="x86_64"
@@ -46,7 +46,7 @@ install -m 644 "$ROOT/src/ui/images/"ipmifan_*.png "$STAGE/ui/images/"
 install -m 644 "$ROOT/spk/var-default-config.json" "$STAGE/var/config.json"
 
 echo "==> scripts / conf / 图标 / LICENSE"
-for f in installer preinst postinst preuninst postuninst preupgrade postupgrade; do
+for f in installer start-stop-status preinst postinst preuninst postuninst preupgrade postupgrade; do
   [ -f "$ROOT/spk/scripts/$f" ] || { echo "缺少 spk/scripts/$f"; exit 1; }
   install -m 755 "$ROOT/spk/scripts/$f" "$WORK/scripts/$f"
 done

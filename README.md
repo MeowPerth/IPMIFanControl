@@ -42,6 +42,10 @@
 
 > 若磁贴行为异常或窗口空白，注销并重新登录 DSM 刷新主菜单缓存。
 
+> **已验证环境**：DSM 7.4.0（SA6400 / epyc7002）。实测通过：风扇与温度读取、
+> 四种模式切换、Zone 0/1 转速写入、DSM 原生窗口加载、升级保留配置与 token、
+> 未登录请求拦截（返回 `unauthorized`）、SPM 提权链路。
+
 ## 使用
 
 - **状态页**：顶部显示连接状态与自动刷新倒计时；「风扇模式」四个按钮一键切换；
@@ -119,7 +123,7 @@ ipmitool sdr type Temp                         # 温度 SDR
 
 ```bash
 ./build.sh
-# → dist/ipmifancontrol_x86_64-dsm7_1.0.0-0002.spk
+# → dist/ipmifancontrol_x86_64-dsm7_1.0.0-0003.spk
 ```
 
 只需 bash、tar、gzip、md5sum、python3，无需 Synology SDK 或 spksrc。
@@ -158,7 +162,7 @@ python3 tools/dev_server.py --real --port 9000
 │       ├── config               # 磁贴 / 窗口声明
 │       └── images/              # 图标（16–256）
 ├── spk/
-│   ├── scripts/                 # installer + 六个生命周期薄壳
+│   ├── scripts/                 # installer + 六个生命周期薄壳 + start-stop-status
 │   ├── conf/privilege           # run-as package / sc-ipmifancontrol
 │   └── var-default-config.json  # 首装默认配置
 ├── tools/
