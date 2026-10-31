@@ -9,7 +9,7 @@ cd "$ROOT"
 
 PKG_NAME="ipmifancontrol"
 VERSION="1.0.0"
-BUILD="0003"
+BUILD="0004"
 # 内置 ipmitool 为 x86-64 ELF（动态链接 libc），因此只声明 x86 平台
 ARCH="apollolake avoton braswell broadwell broadwellnk broadwellnkv2 broadwellntbap bromolow cedarview denverton epyc7002 geminilake geminilakenk grantley kvmx64 purley x86_64"
 SPK_ARCH="x86_64"
@@ -33,7 +33,10 @@ PY
 grep -q "__IPMIFAN_TOKEN__" src/ui/index.html \
   || { echo "ERROR: src/ui/index.html 缺少 __IPMIFAN_TOKEN__ 占位符（installer 无法注入 token）"; exit 1; }
 for icon in 16 24 32 48 64 72 256; do
-  [ -f "src/ui/images/ipmifan_${icon}.png" ] || { echo "ERROR: 缺少图标 src/ui/images/ipmifan_${icon}.png"; exit 1; }
+  [ -f "src/ui/images/icon_${icon}.png" ] || { echo "ERROR: 缺少图标 src/ui/images/icon_${icon}.png"; exit 1; }
+done
+for icon in PACKAGE_ICON.PNG PACKAGE_ICON_256.PNG; do
+  [ -f "$icon" ] || { echo "ERROR: 缺少套件图标 $icon"; exit 1; }
 done
 
 echo "==> 组装 package.tgz 内容"
@@ -42,7 +45,7 @@ install -m 755 "$ROOT/src/ui/api.cgi"          "$STAGE/ui/api.cgi"
 install -m 644 "$ROOT/src/ui/index.html"       "$STAGE/ui/index.html"
 install -m 644 "$ROOT/src/ui/config"           "$STAGE/ui/config"
 install -m 644 "$ROOT/src/ui/dsm-wrapper.js"   "$STAGE/ui/dsm-wrapper.js"
-install -m 644 "$ROOT/src/ui/images/"ipmifan_*.png "$STAGE/ui/images/"
+install -m 644 "$ROOT/src/ui/images/"icon_*.png "$STAGE/ui/images/"
 install -m 644 "$ROOT/spk/var-default-config.json" "$STAGE/var/config.json"
 
 echo "==> scripts / conf / 图标 / LICENSE"
@@ -51,8 +54,8 @@ for f in installer start-stop-status preinst postinst preuninst postuninst preup
   install -m 755 "$ROOT/spk/scripts/$f" "$WORK/scripts/$f"
 done
 install -m 644 "$ROOT/spk/conf/privilege" "$WORK/conf/privilege"
-install -m 644 "$ROOT/src/ui/images/ipmifan_64.png"  "$WORK/PACKAGE_ICON.PNG"     # DSM7 64x64
-install -m 644 "$ROOT/src/ui/images/ipmifan_256.png" "$WORK/PACKAGE_ICON_256.PNG"
+install -m 644 "$ROOT/PACKAGE_ICON.PNG"      "$WORK/PACKAGE_ICON.PNG"        # 作者原始 72x72
+install -m 644 "$ROOT/PACKAGE_ICON_256.PNG"  "$WORK/PACKAGE_ICON_256.PNG"
 install -m 644 "$ROOT/LICENSE" "$WORK/LICENSE"
 
 echo "==> 生成 package.tgz（gzip，固定成员顺序）"

@@ -4,7 +4,7 @@
       "type": "app",
       "title": "IPMI 风扇控制",
       "version": "1.0.0",
-      "icon": "images/ipmifan_256.png",
+      "icon": "images/icon_{0}.png",
       "allowMultiInstance": false,
       "allUsers": false,
       "appWindow": "MeowPerth.IPMIFanControl.AppWindow",
@@ -13,7 +13,7 @@
     "MeowPerth.IPMIFanControl.AppWindow": {
       "type": "lib",
       "title": "IPMI 风扇控制",
-      "icon": "images/ipmifan_256.png"
+      "icon": "images/icon_{0}.png"
     }
   }
 }

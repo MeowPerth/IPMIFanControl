@@ -110,15 +110,30 @@ class Handler(BaseHTTPRequestHandler):
             return self._api_real(method, query, body)
 
         form = urllib.parse.parse_qs(query, keep_blank_values=True)
-        action = (form.get("action") or [""])[0]
-        payload = {}
+        # 页面用 POST 表单提交，action / payload 都在 body 里（URL 不带 query），
+        # 与 api.cgi 的解析顺序保持一致：query 优先，其次 body。
+        body_form = {}
         if body:
             try:
-                payload = json.loads(body.decode("utf-8"))
+                body_form = urllib.parse.parse_qs(body.decode("utf-8"), keep_blank_values=True)
+            except (UnicodeDecodeError, ValueError):
+                body_form = {}
+        merged = dict(form)
+        for key, value in body_form.items():
+            merged.setdefault(key, value)
+
+        action = (merged.get("action") or [""])[0]
+        payload = {}
+        if "payload" in merged:
+            try:
+                payload = json.loads(merged["payload"][0])
             except ValueError:
-                form_body = urllib.parse.parse_qs(body.decode("utf-8"), keep_blank_values=True)
-                if "payload" in form_body:
-                    payload = json.loads(form_body["payload"][0])
+                payload = {}
+        elif body:
+            try:
+                payload = json.loads(body.decode("utf-8"))
+            except (UnicodeDecodeError, ValueError):
+                payload = {}
 
         if action == "status":
             return mock_status()

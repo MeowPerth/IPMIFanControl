@@ -327,7 +327,22 @@ def parse_payload(raw, form):
 def main():
     method = os.environ.get("REQUEST_METHOD", "GET").upper()
     form = urllib.parse.parse_qs(os.environ.get("QUERY_STRING", ""), keep_blank_values=True)
-    action = (form.get("action") or [""])[0]
+
+    # 请求体只读一次：页面用 POST + 表单（action/payload 都在 body 里，URL 不带 query），
+    # 所以 action 必须同时从 query 与 body 取，否则会误报 unknown action。
+    raw = read_body() if method == "POST" else b""
+    body_form = {}
+    if raw:
+        try:
+            body_form = urllib.parse.parse_qs(raw.decode("utf-8", "replace"),
+                                              keep_blank_values=True)
+        except (UnicodeDecodeError, ValueError):
+            body_form = {}
+    merged = dict(form)
+    for key, value in body_form.items():
+        merged.setdefault(key, value)
+
+    action = (merged.get("action") or [""])[0]
     ACTION[0] = action or "-"
 
     if action not in ("status", "set_mode", "set_duty", "config", "config_put"):
@@ -348,7 +363,7 @@ def main():
         elif action in ("set_mode", "set_duty", "config_put"):
             if method != "POST":
                 return fail("method not allowed")
-            payload = parse_payload(read_body(), form)
+            payload = parse_payload(raw, merged)
             if not isinstance(payload, dict):
                 return fail("payload 必须是对象")
 

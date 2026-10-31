@@ -25,8 +25,7 @@ body{margin:0;background:var(--bg);color:var(--text);
 .wrap{max-width:1000px;margin:0 auto;padding:20px 18px 22px;
   display:flex;flex-direction:column;height:100vh;min-height:0;overflow:hidden}
 h1{font-size:20px;margin:0;display:flex;align-items:center;gap:10px}
-h1 .logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#2f8af0,#17b39a);
-  display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
+h1 .logo{width:26px;height:26px;border-radius:7px;object-fit:contain;flex:none}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
 .top-r{display:flex;align-items:center;gap:10px}
 .meta{font-size:12px;color:var(--muted)}
@@ -131,7 +130,7 @@ input:focus{outline:none;border-color:var(--accent)}
 <body>
 <div class="wrap">
   <div class="top">
-    <h1><span class="logo">FC</span> <span data-i18n="title">IPMI 风扇控制</span>
+    <h1><img class="logo" src="images/icon_256.png" alt=""> <span data-i18n="title">IPMI 风扇控制</span>
       <span class="pill busy" id="svcPill">…</span></h1>
     <div class="top-r">
       <span class="meta" id="lastUpdate">—</span>

@@ -123,17 +123,26 @@ ipmitool sdr type Temp                         # 温度 SDR
 
 ```bash
 ./build.sh
-# → dist/ipmifancontrol_x86_64-dsm7_1.0.0-0003.spk
+# → dist/ipmifancontrol_x86_64-dsm7_1.0.0-0004.spk
 ```
 
 只需 bash、tar、gzip、md5sum、python3，无需 Synology SDK 或 spksrc。
 `build.sh` 会自检 Python CGI 语法、JSON 文件、token 占位符与图标是否齐全，
 并把 `package.tgz` 的 md5 写进 `INFO` 的 `checksum`。
 
-图标由纯标准库脚本生成（无 PIL / ImageMagick 依赖）：
+图标沿用作者原始素材（`PACKAGE_ICON.PNG`、`src/ui/images/icon_{72,256}.png`），
+其余尺寸只是把 256 原图等比缩小，**不改变设计**：
 
 ```bash
-python3 tools/make_icons.py src/ui/images     # → ipmifan_{16,24,32,48,64,72,256}.png
+python3 tools/resize_icons.py src/ui/images   # → icon_{16,24,32,48,64}.png
+```
+
+## 测试
+
+`api.cgi` 的行为测试不依赖 NAS / IPMI 硬件（含"POST 的 action 只在请求体里"这条回归）：
+
+```bash
+python3 -m unittest discover -s tests -v
 ```
 
 ## 本地调试（无需 NAS / 无需 IPMI 硬件）
@@ -160,13 +169,13 @@ python3 tools/dev_server.py --real --port 9000
 │       ├── api.cgi              # Python 标准库 CGI：鉴权 + 批量 ipmitool + JSON
 │       ├── dsm-wrapper.js       # DSM 原生窗口注册（Ext JS）
 │       ├── config               # 磁贴 / 窗口声明
-│       └── images/              # 图标（16–256）
+│       └── images/              # 作者原始图标（icon_72/256）+ 缩放尺寸
 ├── spk/
 │   ├── scripts/                 # installer + 六个生命周期薄壳 + start-stop-status
 │   ├── conf/privilege           # run-as package / sc-ipmifancontrol
 │   └── var-default-config.json  # 首装默认配置
 ├── tools/
-│   ├── make_icons.py            # 纯标准库生成图标
+│   ├── resize_icons.py          # 由原图缩放出其余尺寸（不改设计）
 │   └── dev_server.py            # 本地开发服务器（模拟 / 真实两种模式）
 └── docs/screenshots/
 ```
