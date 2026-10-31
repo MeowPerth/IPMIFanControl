@@ -1,0 +1,189 @@
+#!/bin/sh
+# ---------------------------------------------------------------------------
+# IPMI Fan Control 通用安装器（DSM 7）
+# 结构对齐 spksrc mk/spksrc.service/installer.dsm7（裁剪版，自包含无外部依赖）：
+#   preinst/postinst/preuninst/postuninst/preupgrade/postupgrade
+# 六个薄壳脚本 source 本文件后调用同名函数。
+#
+# 与 IP-Monitor-DSM 的差异：本套件没有守护进程（风扇/温度按需读取），
+# 因此安装器只做三件事——默认配置同步、实例 token 生成并注入页面、
+# 权限（可执行位 / 数据目录属主）。
+# ---------------------------------------------------------------------------
+INST_LOG="/var/log/packages/${SYNOPKG_PKGNAME}.log"
+PKG_USER="${PKG_USER:-sc-ipmifancontrol}"
+
+install_log ()
+{
+    if [ $# -eq 0 ]; then          # 支持管道输入（eval ... | install_log）
+        while IFS= read -r _line; do
+            [ -n "${_line}" ] && echo "$(date +'%Y/%m/%d %H:%M:%S') ${_line}" 1>&2
+        done
+    else
+        echo "$(date +'%Y/%m/%d %H:%M:%S') $*" 1>&2
+    fi
+}
+
+log_step ()
+{
+    install_log "===> Step $1. STATUS=${SYNOPKG_PKG_STATUS} PKG=${SYNOPKG_PKGNAME}"
+}
+
+call_func ()
+{
+    FUNC=$1
+    if command -v "${FUNC}" >/dev/null 2>&1; then
+        install_log "Begin ${FUNC}"
+        eval "${FUNC}" 2>&1 | install_log
+        install_log "End ${FUNC}"
+    fi
+}
+
+[ -n "${SYNOPKG_PKGVAR}" ] || SYNOPKG_PKGVAR="${SYNOPKG_PKGDEST}/var"
+
+# spk 内 target/var 的默认文件 → 持久目录 SYNOPKG_PKGVAR
+# 已存在的不覆盖；新文件以 .new 补入（升级不冲掉用户配置）
+syno_sync_var_folder ()
+{
+    _var="${SYNOPKG_PKGDEST}/var"
+    [ -d "$_var" ] || return 0
+    [ -n "$(ls -A "$_var" 2>/dev/null)" ] || return 0
+    install_log "Sync default files from target/var to ${SYNOPKG_PKGVAR}"
+    mkdir -p "${SYNOPKG_PKGVAR}"
+    find "$_var" -type f | while read -r _f; do
+        _rel=${_f#${_var}/}
+        if [ ! -e "${SYNOPKG_PKGVAR}/${_rel}" ]; then
+            mkdir -p "${SYNOPKG_PKGVAR}/$(dirname "${_rel}")"
+            cp -f "$_f" "${SYNOPKG_PKGVAR}/${_rel}" && install_log "  + ${_rel}"
+        fi
+    done
+    find "$_var" -type f | while read -r _f; do
+        _rel=${_f#${_var}/}
+        if [ -e "${SYNOPKG_PKGVAR}/${_rel}" ] && ! cmp -s "$_f" "${SYNOPKG_PKGVAR}/${_rel}"; then
+            cp -f "$_f" "${SYNOPKG_PKGVAR}/${_rel}.new" && install_log "  ~ ${_rel}.new"
+        fi
+    done
+}
+
+# 数据目录属主：api.cgi 以套件用户身份运行，必须能写 config.json / token
+fix_var_owner ()
+{
+    mkdir -p "${SYNOPKG_PKGVAR}"
+    if chown -R "${PKG_USER}" "${SYNOPKG_PKGVAR}" 2>/dev/null; then
+        chmod 0755 "${SYNOPKG_PKGVAR}"
+        install_log "var owner -> ${PKG_USER}"
+    else
+        install_log "WARN: 无法把 ${SYNOPKG_PKGVAR} 交给 ${PKG_USER}（用户可能尚未创建），配置保存可能失败"
+        chmod 0755 "${SYNOPKG_PKGVAR}"
+    fi
+}
+
+# 实例 token：DSM 会话校验不可用时的兜底通道（无凭据可泄露，仅用于放行本机页面）
+make_token ()
+{
+    if [ ! -s "${SYNOPKG_PKGVAR}/token" ]; then
+        python3 -c 'import secrets; print(secrets.token_hex(16))' > "${SYNOPKG_PKGVAR}/token" 2>/dev/null \
+            || head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' > "${SYNOPKG_PKGVAR}/token"
+        install_log "token generated -> ${SYNOPKG_PKGVAR}/token"
+    fi
+    chown "${PKG_USER}" "${SYNOPKG_PKGVAR}/token" 2>/dev/null || true
+    chmod 0644 "${SYNOPKG_PKGVAR}/token"
+}
+
+# 把 token 注入 UI（静态页由 DSM 托管，无法运行时读取 var，故安装期模板替换）
+inject_token ()
+{
+    _html="${SYNOPKG_PKGDEST}/ui/index.html"
+    if [ -f "${_html}" ] && [ -s "${SYNOPKG_PKGVAR}/token" ]; then
+        _tok=$(cat "${SYNOPKG_PKGVAR}/token")
+        sed -i "s/__IPMIFAN_TOKEN__/${_tok}/g" "${_html}" \
+            && install_log "token injected into ui/index.html"
+        if grep -q "__IPMIFAN_TOKEN__" "${_html}"; then
+            install_log "WARN: ui/index.html 仍含未替换占位符，token 兜底通道将不可用"
+        fi
+    fi
+}
+
+# 可执行位：CGI 与被调用的 ipmitool
+fix_modes ()
+{
+    chmod 0755 "${SYNOPKG_PKGDEST}/ui/api.cgi" 2>/dev/null && install_log "api.cgi 0755"
+    chmod 0755 "${SYNOPKG_PKGDEST}/bin/"* 2>/dev/null && install_log "bin/* 0755"
+}
+
+# 环境检查（只提示不阻断，便于用户自查）
+check_env ()
+{
+    if [ -e /dev/ipmi0 ]; then
+        install_log "IPMI 设备就绪: /dev/ipmi0"
+    else
+        install_log "WARN: 未发现 /dev/ipmi0（IPMI 内核模块未加载或本机无 BMC）"
+    fi
+    if [ -x /usr/local/bin/spm-exec ]; then
+        install_log "spm-exec: found"
+    else
+        install_log "WARN: 未发现 spm-exec，请安装 SimplePermissionManager 并授权本套件以 root 权限运行"
+    fi
+}
+
+preinst ()
+{
+    log_step preinst
+    # api.cgi 是 Python 脚本：DSM 7 自带 python3（3.8+），只需确认解释器可用
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "ERROR: python3 not found. IPMI Fan Control requires DSM 7.0+ (built-in python3)." 1>&2
+        exit 1
+    fi
+    _pyver=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "0")
+    install_log "python3 found: ${_pyver}"
+    case "${_pyver}" in
+        2.*|3.[0-6]|3.[0-6].*)
+            echo "ERROR: python3 >= 3.7 required, found ${_pyver}." 1>&2
+            exit 1 ;;
+    esac
+    exit 0
+}
+
+postinst ()
+{
+    log_step postinst
+    call_func syno_sync_var_folder
+    call_func make_token
+    call_func fix_var_owner
+    call_func inject_token
+    call_func fix_modes
+    call_func check_env
+    install_log "提示：首次使用请在 SimplePermissionManager 中授权本套件以 root 权限启动"
+    exit 0
+}
+
+preuninst ()
+{
+    log_step preuninst
+    # 无守护进程：无需停服务；配置与 token 保留，重装自动复用
+    exit 0
+}
+
+postuninst ()
+{
+    log_step postuninst
+    # 默认保留 ${SYNOPKG_PKGVAR}（配置文件），需彻底清除请手动删除
+    exit 0
+}
+
+preupgrade ()
+{
+    log_step preupgrade
+    exit 0
+}
+
+postupgrade ()
+{
+    log_step postupgrade
+    call_func syno_sync_var_folder
+    call_func make_token
+    call_func fix_var_owner
+    call_func inject_token
+    call_func fix_modes
+    call_func check_env
+    exit 0
+}

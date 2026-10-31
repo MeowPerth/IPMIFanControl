@@ -1,21 +1,40 @@
-IPMI风扇控制（IPMIFanControl）
-==========================================
+IPMI 风扇控制（IPMI Fan Control）
+================================
+
 作者：小H酱
+项目：https://github.com/MeowPerth/IPMIFanControl
 
-声明：
-1. 本套件通过IPMI 监控风扇转速和温度信息，支持超微（Supermicro）主板IPMI。
-2. 本套件不会破坏原有系统环境，安装/卸载不影响其他套件。
+声明
+----
+1. 本套件通过 IPMI 读取风扇转速与系统温度，并切换超微（Supermicro）主板的
+   风扇模式；不会修改 DSM 系统文件，安装/卸载不影响其他套件。
+2. 风扇控制属于写入 BMC 的操作，仅在确认主板型号与散热方案后使用；
+   自定义转速过低可能导致过热，请自行评估风险。
 
-功能说明：
-- 查询当前所有风扇转速、当前系统温度
-- 提供四种风扇模式：Standard、Full Speed、Optimal、Heavy I/O
-- Full模式下可自定义设置每个风扇区域的转速百分比
+功能
+----
+- 查询所有风扇转速（RPM）与温度传感器读数
+- 四种风扇模式：Standard、Full Speed、Optimal、Heavy I/O
+- Full Speed 模式下按 Zone 0 / Zone 1 自定义转速（0–100%）
+- 温度告警/危险阈值可配置，界面按阈值着色
+- DSM 原生应用窗口（不新开浏览器页面），跟随系统明暗主题，中英文自适应
 
-安装流程：
-0. 确保群晖已安装 SimplePermissionManager 套件。
-1. 安装本套件时，在 SimplePermissionManager 中授权本套件以 root 权限启动。
-2. 在套件中心启用本套件。
+运行要求
+--------
+0. 群晖 DSM 7.3 及以上（x86 平台），且主板支持 IPMI 并已加载 /dev/ipmi0
+1. 安装 SimplePermissionManager 套件，并在其中授权本套件以 root 权限启动
+2. 本套件自带 ipmitool（bin/ipmitool，BSD-3-Clause），无需另装
 
-注意事项：
-- 本套件依赖 ipmitool 命令，请确保系统已安装 ipmitool。
-- 风扇控制仅适用于支持 IPMI 的超微（Supermicro）主板。
+安装流程
+--------
+1. 安装 SimplePermissionManager。
+2. 套件中心 → 手动安装 → 选择本套件 .spk（提示"发布者未经 Synology 验证"属正常）。
+3. 在 SimplePermissionManager 中授权本套件以 root 权限启动。
+4. 打开套件窗口即可读取数据；若磁贴未出现，注销并重新登录 DSM。
+
+注意事项
+--------
+- 风扇模式 / 转速命令为超微（Supermicro）私有 IPMI 命令（raw 0x30 ...），
+  其他厂商主板可能不可用（此时界面会提示未读取到 IPMI 数据）。
+- 本套件不监听任何 TCP 端口，也无常驻后台进程。
+- 第三方组件：ipmitool（BSD-3-Clause），随包内置。

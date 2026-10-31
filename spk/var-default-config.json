@@ -1,0 +1,6 @@
+{
+  "refresh_seconds": 10,
+  "auto_refresh": true,
+  "temp_warn_c": 50,
+  "temp_crit_c": 70
+}

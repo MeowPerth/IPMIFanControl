@@ -1,7 +1,12 @@
-# 构建产物（可用 ./build_spk.sh 重新生成）
-*.spk
-
-# 临时文件
-*.tmp
-*.swp
+# 构建产物
+dist/
+# 本机开发运行时（配置 / token）
+src/var/
+# Python 缓存
+__pycache__/
+*.pyc
+# 系统杂项
 .DS_Store
+Thumbs.db
+*.swp
+*.tmp

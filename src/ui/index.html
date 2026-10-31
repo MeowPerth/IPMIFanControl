@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<!-- IPMI Fan Control — DSM 应用窗口单页
+     由 DSM nginx 托管（/webman/3rdparty/ipmifancontrol/），API 走同目录 api.cgi（同源）。
+     安装时 installer 会把 __IPMIFAN_TOKEN__ 替换为实例 token（认证兜底通道）。
+     视觉语言与 IP-Monitor-DSM 保持一致：同一套设计令牌、分页、卡片、明暗主题。 -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IPMI Fan Control</title>
+<style>
+:root{
+  --bg:#f2f4f7; --card:#ffffff; --text:#1b2430; --muted:#6b7686; --line:#e3e7ee;
+  --accent:#2377ef; --accent-weak:#e8f1fe; --ok:#1fa45b; --warn:#e07b00; --err:#d84343;
+  --mono:"SF Mono",Consolas,"Liberation Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root{
+  --bg:#16181d; --card:#1f2229; --text:#e8eaf0; --muted:#9aa3b2; --line:#2c313b;
+  --accent:#4b8ef7; --accent-weak:#243044; --ok:#37b96f; --warn:#f09b3c; --err:#ef6b6b;
+}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.55 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,sans-serif;}
+.wrap{max-width:1000px;margin:0 auto;padding:20px 18px 22px;
+  display:flex;flex-direction:column;height:100vh;min-height:0;overflow:hidden}
+h1{font-size:20px;margin:0;display:flex;align-items:center;gap:10px}
+h1 .logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#2f8af0,#17b39a);
+  display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.top-r{display:flex;align-items:center;gap:10px}
+.meta{font-size:12px;color:var(--muted)}
+.pill{font-size:12px;padding:3px 10px;border-radius:999px;background:var(--accent-weak);color:var(--accent)}
+.pill.ok{background:rgba(31,164,91,.14);color:var(--ok)}
+.pill.err{background:rgba(216,67,67,.14);color:var(--err)}
+.pill.busy{background:var(--accent-weak);color:var(--accent)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:0 0 16px}
+.tab{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;
+  padding:8px 16px;margin-bottom:-1px;color:var(--muted);font-size:14px;cursor:pointer}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.panel{display:none}
+.panel.active{display:block;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.card h2{font-size:13px;margin:0 0 12px;color:var(--muted);font-weight:600;
+  text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:8px}
+.card h2 .hint{font-size:11px;letter-spacing:0;text-transform:none;color:var(--muted);font-weight:400}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media (max-width:720px){.grid{grid-template-columns:1fr}}
+.grid .card{margin-bottom:0}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media (max-width:640px){.modes{grid-template-columns:repeat(2,1fr)}}
+.mode{position:relative;text-align:left;padding:11px 13px 10px;border-radius:9px;
+  border:1px solid var(--line);background:var(--bg);color:var(--text);cursor:pointer;
+  transition:border-color .15s,background .15s;font:inherit}
+.mode:hover{border-color:var(--accent)}
+.mode.on{border-color:var(--accent);background:var(--accent-weak)}
+.mode.on::after{content:"✓";position:absolute;right:10px;top:8px;color:var(--accent);font-size:12px;font-weight:700}
+.mode .zh{display:block;font-size:14px;font-weight:600}
+.mode .en{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.mode.on .en{color:var(--accent)}
+.mode:disabled{opacity:.55;cursor:default;pointer-events:none}
+.duty{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);display:none}
+.duty.show{display:block}
+.duty-row{display:grid;grid-template-columns:158px 1fr 52px;align-items:center;gap:12px;margin-bottom:10px}
+.duty-row .lab{font-size:12px;color:var(--muted)}
+.duty-row .lab b{display:block;color:var(--text);font-size:13px;font-weight:600}
+.duty-row input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+.duty-row .val{text-align:right;font-family:var(--mono);font-size:13px;font-weight:600}
+.duty-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.duty-tip{font-size:11px;color:var(--muted)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);
+  text-align:left;font-weight:600;padding:0 0 8px}
+.tbl th.num{text-align:right}
+.tbl td{padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+.tbl tr:first-child td{border-top:none}
+.tbl .num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbl .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+.bar-cell{width:36%;padding-left:16px}
+.track{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.track .bar{display:block;height:100%;border-radius:3px;background:var(--accent);min-width:0;
+  transition:width .3s ease}
+.tbl .rpm{font-weight:600}
+.tbl .rpm.zero{color:var(--muted);font-weight:400}
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;font-family:var(--mono);font-size:12px}
+.chip.ok{background:rgba(31,164,91,.14);color:var(--ok)}
+.chip.warn{background:rgba(224,123,0,.16);color:var(--warn)}
+.chip.err{background:rgba(216,67,67,.15);color:var(--err)}
+.banner{display:none;border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:14px;line-height:1.5}
+.banner.show{display:flex;gap:9px;align-items:flex-start}
+.banner.warn{background:rgba(224,123,0,.10);border:1px solid rgba(224,123,0,.35);color:var(--warn)}
+.banner.err{background:rgba(216,67,67,.10);border:1px solid rgba(216,67,67,.35);color:var(--err)}
+.banner .txt{color:var(--text);flex:1}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);
+  padding:7px 14px;border-radius:8px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{filter:brightness(1.08);color:#fff}
+button:disabled{opacity:.5;cursor:default;pointer-events:none}
+.kv{display:flex;justify-content:space-between;gap:14px;padding:5px 0;font-size:13px;border-top:1px solid var(--line)}
+.kv:first-of-type{border-top:none}
+.kv .k{color:var(--muted)}
+.kv .v{font-family:var(--mono);text-align:right;word-break:break-all}
+form fieldset{border:1px solid var(--line);border-radius:8px;margin:0 0 14px;padding:12px 14px 14px}
+form legend{font-size:13px;color:var(--muted);padding:0 6px}
+label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+input[type=text],input[type=number]{width:100%;font:inherit;color:var(--text);background:var(--bg);
+  border:1px solid var(--line);border-radius:7px;padding:7px 10px}
+input:focus{outline:none;border-color:var(--accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:680px){.row2{grid-template-columns:1fr}}
+.check{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--muted)}
+.check input{width:auto;accent-color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
+  background:var(--text);color:var(--bg);padding:9px 18px;border-radius:8px;font-size:13px;
+  opacity:0;pointer-events:none;transition:.25s;max-width:80vw;z-index:20}
+.toast.show{opacity:.96}
+.toast.err{background:var(--err);color:#fff}
+.toast.ok{background:var(--ok);color:#fff}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;
+  align-items:center;justify-content:center;z-index:30}
+.overlay .box{background:var(--card);border-radius:10px;padding:26px 30px;text-align:center;max-width:340px}
+.overlay .box p{color:var(--muted);font-size:13px;margin:10px 0 18px}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;
+  border-top-color:transparent;border-radius:50%;animation:r .7s linear infinite;vertical-align:-2px}
+@keyframes r{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1><span class="logo">FC</span> <span data-i18n="title">IPMI 风扇控制</span>
+      <span class="pill busy" id="svcPill">…</span></h1>
+    <div class="top-r">
+      <span class="meta" id="lastUpdate">—</span>
+      <button id="btnRefresh" data-i18n="refresh">刷新</button>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="status" data-i18n="tabStatus">状态</button>
+    <button class="tab" data-tab="config" data-i18n="tabConfig">配置</button>
+  </div>
+
+  <div class="panel active" id="panel-status">
+    <div class="banner" id="banner"><span class="txt" id="bannerTxt"></span></div>
+
+    <div class="card">
+      <h2><span data-i18n="modeTitle">风扇模式</span>
+        <span class="hint" id="modeHint"></span></h2>
+      <div class="modes" id="modes">
+        <button class="mode" data-mode="optimal">
+          <span class="zh" data-i18n="mode_optimal">静音</span><span class="en">Optimal</span></button>
+        <button class="mode" data-mode="standard">
+          <span class="zh" data-i18n="mode_standard">标准</span><span class="en">Standard</span></button>
+        <button class="mode" data-mode="full_speed">
+          <span class="zh" data-i18n="mode_full">全速</span><span class="en">Full Speed</span></button>
+        <button class="mode" data-mode="heavy_io">
+          <span class="zh" data-i18n="mode_heavy">重IO</span><span class="en">Heavy I/O</span></button>
+      </div>
+      <div class="duty" id="dutyPanel">
+        <div class="duty-row">
+          <span class="lab"><b data-i18n="zone0">Zone 0</b><span data-i18n="zone0sub">CPU / 系统</span></span>
+          <input type="range" id="duty0" min="0" max="100" step="1" value="50">
+          <span class="val" id="duty0Val">50%</span>
+        </div>
+        <div class="duty-row">
+          <span class="lab"><b data-i18n="zone1">Zone 1</b><span data-i18n="zone1sub">机箱 / 存储</span></span>
+          <input type="range" id="duty1" min="0" max="100" step="1" value="50">
+          <span class="val" id="duty1Val">50%</span>
+        </div>
+        <div class="duty-foot">
+          <span class="duty-tip" data-i18n="dutyTip">转速仅在全速模式下生效</span>
+          <button class="primary" id="btnDuty" data-i18n="applyDuty">应用转速</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2><span data-i18n="fans">风扇</span><span class="hint" id="fanCount"></span></h2>
+        <table class="tbl">
+          <thead><tr><th data-i18n="colName">名称</th><th class="bar-cell"></th>
+            <th class="num" data-i18n="colRpm">转速</th></tr></thead>
+          <tbody id="fanBody"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2><span data-i18n="temps">温度</span><span class="hint" id="tempCount"></span></h2>
+        <table class="tbl">
+          <thead><tr><th data-i18n="colSensor">传感器</th>
+            <th class="num" data-i18n="colTemp">温度</th></tr></thead>
+          <tbody id="tempBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-config">
+    <div class="card">
+      <h2><span data-i18n="cfgTitle">采集与告警</span></h2>
+      <form id="cfgForm" autocomplete="off">
+        <fieldset>
+          <legend data-i18n="fsPoll">采集</legend>
+          <div class="row2">
+            <div><label data-i18n="interval">自动刷新间隔（秒，≥5）</label>
+              <input type="number" id="f_refresh" min="5" max="3600" step="1"></div>
+            <div><label data-i18n="warnC">温度告警阈值（°C）</label>
+              <input type="number" id="f_warn" min="0" max="120" step="1"></div>
+          </div>
+          <label data-i18n="critC">温度危险阈值（°C）</label>
+          <input type="number" id="f_crit" min="0" max="150" step="1">
+          <div class="check"><input type="checkbox" id="f_auto">
+            <span data-i18n="autoRefresh">自动刷新</span></div>
+        </fieldset>
+        <div class="btnrow" style="margin-top:0">
+          <button type="submit" class="primary" id="btnSave" data-i18n="save">保存配置</button>
+          <button type="button" id="btnRestore" data-i18n="restore">恢复默认</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2><span data-i18n="runEnv">运行环境</span></h2>
+      <div class="kv"><span class="k" data-i18n="ipmitool">ipmitool</span>
+        <span class="v" id="envIpmitool">—</span></div>
+      <div class="kv"><span class="k">spm-exec</span>
+        <span class="v" id="envSpm">—</span></div>
+      <div class="kv"><span class="k" data-i18n="duration">本次读取耗时</span>
+        <span class="v" id="envDuration">—</span></div>
+      <div class="kv"><span class="k" data-i18n="lastRead">上次读取</span>
+        <span class="v" id="envTs">—</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="authOverlay"><div class="box">
+  <div style="font-size:34px">🔒</div>
+  <p data-i18n="needLogin">需要登录 DSM 后才能访问。请登录 NAS 管理界面后刷新本页。</p>
+  <button class="primary" onclick="location.reload()" data-i18n="reload">刷新页面</button>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ---------- API：同目录 api.cgi（CGI → ipmitool，无需守护进程） ---------- */
+const API_BASE = location.pathname.replace(/\/[^\/]*$/, "");
+const TOKEN = "__IPMIFAN_TOKEN__";                 // installer 模板替换；未替换=本地开发
+const AUTH_HDR = (/^[0-9a-f]{16,}$/i.test(TOKEN)) ? {"X-IPMIFan-Token": TOKEN} : {};
+if (AUTH_HDR["X-IPMIFan-Token"]) {                 // 同时写 Cookie，防代理剥离自定义头
+  document.cookie = "ipmifan_token=" + TOKEN + "; path=/; SameSite=Lax";
+}
+
+/* ---------- i18n ---------- */
+const I18N = {
+  zh: {title:"IPMI 风扇控制", tabStatus:"状态", tabConfig:"配置", refresh:"刷新",
+    modeTitle:"风扇模式", mode_optimal:"静音", mode_standard:"标准", mode_full:"全速",
+    mode_heavy:"重IO", zone0:"Zone 0", zone0sub:"CPU / 系统", zone1:"Zone 1",
+    zone1sub:"机箱 / 存储", applyDuty:"应用转速", dutyTip:"转速仅在全速模式下生效",
+    fans:"风扇", temps:"温度", colName:"名称", colRpm:"转速", colSensor:"传感器",
+    colTemp:"温度", emptyFans:"未检测到风扇", emptyTemps:"未检测到温度",
+    cfgTitle:"采集与告警", fsPoll:"采集", interval:"自动刷新间隔（秒，≥5）",
+    warnC:"温度告警阈值（°C）", critC:"温度危险阈值（°C）", autoRefresh:"自动刷新",
+    save:"保存配置", restore:"恢复默认", runEnv:"运行环境", ipmitool:"ipmitool",
+    duration:"本次读取耗时", lastRead:"上次读取",
+    needLogin:"需要登录 DSM 后才能访问。请登录 NAS 管理界面后刷新本页。",
+    reload:"刷新页面", connected:"已连接", disconnected:"未连接", loading:"读取中…",
+    updating:"更新中…", saving:"保存中…", modeCur:"当前", saved:"配置已保存",
+    restored:"已恢复默认（记得保存）", modeChanged:"风扇模式已切换", dutyChanged:"转速已应用",
+    unsupported:"未读取到 IPMI 风扇/温度数据。请确认主板支持 IPMI，且已在 SimplePermissionManager 中授权本套件以 root 权限运行。",
+    noSpm:"未检测到 spm-exec：请在 SimplePermissionManager 中授权本套件以 root 权限运行，否则无法访问 BMC。",
+    paused:"自动刷新已关闭", refreshIn:"自动刷新 %s s", updated:"更新于 %s",
+    unknownMode:"模式未知"},
+  en: {title:"IPMI Fan Control", tabStatus:"Status", tabConfig:"Settings", refresh:"Refresh",
+    modeTitle:"Fan mode", mode_optimal:"Silent", mode_standard:"Standard", mode_full:"Full speed",
+    mode_heavy:"Heavy I/O", zone0:"Zone 0", zone0sub:"CPU / System", zone1:"Zone 1",
+    zone1sub:"Chassis / Storage", applyDuty:"Apply duty", dutyTip:"Duty applies in full-speed mode",
+    fans:"Fans", temps:"Temperatures", colName:"Name", colRpm:"Speed", colSensor:"Sensor",
+    colTemp:"Temp", emptyFans:"No fans detected", emptyTemps:"No temperatures detected",
+    cfgTitle:"Polling & alerts", fsPoll:"Polling", interval:"Auto refresh (seconds, >=5)",
+    warnC:"Warning threshold (°C)", critC:"Critical threshold (°C)", autoRefresh:"Auto refresh",
+    save:"Save", restore:"Restore defaults", runEnv:"Environment", ipmitool:"ipmitool",
+    duration:"Last read took", lastRead:"Last read",
+    needLogin:"Please log in to DSM and reload this page.",
+    reload:"Reload", connected:"Connected", disconnected:"Disconnected", loading:"Reading…",
+    updating:"Updating…", saving:"Saving…", modeCur:"current", saved:"Configuration saved",
+    restored:"Defaults restored (remember to save)", modeChanged:"Fan mode changed",
+    dutyChanged:"Duty applied",
+    unsupported:"No IPMI fan/temperature data. Make sure the board supports IPMI and this package is granted root in SimplePermissionManager.",
+    noSpm:"spm-exec not found: grant root permission for this package in SimplePermissionManager.",
+    paused:"Auto refresh off", refreshIn:"Auto refresh %s s", updated:"Updated %s",
+    unknownMode:"unknown mode"},
+};
+const L = I18N[(navigator.language || "zh").toLowerCase().startsWith("zh") ? "zh" : "en"];
+document.querySelectorAll("[data-i18n]").forEach(el => { if (L[el.dataset.i18n]) el.textContent = L[el.dataset.i18n]; });
+
+/* ---------- utils ---------- */
+const $ = id => document.getElementById(id);
+let toastTimer;
+function toast(msg, cls){ const t = $("toast"); t.textContent = msg; t.className = "toast show " + (cls || "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "toast", 2600); }
+function api(action, opt){
+  opt = opt || {};
+  const hdr = Object.assign({}, AUTH_HDR);
+  let p;
+  if (opt.body !== undefined){
+    const f = new URLSearchParams();
+    f.set("action", action);
+    f.set("payload", JSON.stringify(opt.body));
+    p = fetch(API_BASE + "/api.cgi", {method: "POST",
+      headers: Object.assign({"Content-Type": "application/x-www-form-urlencoded"}, hdr),
+      credentials: "same-origin", body: f});
+  } else {
+    const q = new URLSearchParams(Object.assign({action: action}, opt.params || {}));
+    p = fetch(API_BASE + "/api.cgi?" + q, {headers: hdr, credentials: "same-origin"});
+  }
+  return p.then(r => r.text().then(t => {
+    let d;
+    try { d = JSON.parse(t); }
+    catch (e){ throw Object.assign(new Error("HTTP " + r.status),
+      {code: r.status, auth: r.status === 401 || r.status === 403}); }
+    if (d && d.error){
+      throw Object.assign(new Error(d.error), {auth: d.error === "unauthorized", data: d});
+    }
+    return d;
+  }));
+}
+function busy(btn, on, label){
+  if (on){ btn.dataset.txt = btn.textContent; btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span> ' + (label || "…"); }
+  else { btn.disabled = false; if (btn.dataset.txt) btn.textContent = btn.dataset.txt; }
+}
+function showAuth(){ $("authOverlay").style.display = "flex"; }
+function setPill(state, text){
+  $("svcPill").className = "pill " + (state === "ok" ? "ok" : state === "err" ? "err" : "busy");
+  $("svcPill").textContent = text;
+}
+
+/* ---------- state ---------- */
+let CFG = {refresh_seconds: 10, auto_refresh: true, temp_warn_c: 50, temp_crit_c: 70};
+let nextIn = null;
+let loading = false;
+let lastStatus = null;
+let lastTs = "";
+
+/* ---------- 渲染 ---------- */
+function tempClass(v){
+  if (v >= CFG.temp_crit_c) return "err";
+  if (v >= CFG.temp_warn_c) return "warn";
+  return "ok";
+}
+function modeLabel(mode){
+  const key = {optimal: "mode_optimal", standard: "mode_standard",
+               full_speed: "mode_full", heavy_io: "mode_heavy"}[mode];
+  return key ? L[key] : mode;
+}
+function renderMode(mode){
+  document.querySelectorAll(".mode").forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
+  $("dutyPanel").classList.toggle("show", mode === "full_speed");
+  $("modeHint").textContent = mode ? L.modeCur + " · " + modeLabel(mode) : "";
+}
+function emptyRow(tbody, colspan, text){
+  const tr = document.createElement("tr");
+  const td = document.createElement("td");
+  td.colSpan = colspan;
+  td.style.cssText = "text-align:center;color:var(--muted);padding:14px 0";
+  td.textContent = text;
+  tr.appendChild(td); tbody.appendChild(tr);
+}
+function renderFans(fans){
+  const body = $("fanBody");
+  body.textContent = "";
+  $("fanCount").textContent = fans.length ? "×" + fans.length : "";
+  if (!fans.length){ emptyRow(body, 3, L.emptyFans); return; }
+  const max = Math.max.apply(null, fans.map(f => f.rpm || 0).concat([1]));
+  fans.forEach(f => {
+    const tr = document.createElement("tr");
+    const name = document.createElement("td");
+    name.className = "name"; name.textContent = f.name; name.title = f.name;
+    const barCell = document.createElement("td");
+    barCell.className = "bar-cell";
+    const track = document.createElement("div");
+    track.className = "track";
+    const bar = document.createElement("span");
+    bar.className = "bar";
+    bar.style.width = (f.rpm ? Math.max(3, Math.round(f.rpm / max * 100)) : 0) + "%";
+    bar.style.background = f.rpm ? "var(--accent)" : "var(--muted)";
+    track.appendChild(bar); barCell.appendChild(track);
+    const val = document.createElement("td");
+    val.className = "num rpm" + (f.rpm ? "" : " zero");
+    val.textContent = (f.rpm === null || f.rpm === undefined) ? "—" : f.rpm + " RPM";
+    tr.append(name, barCell, val);
+    body.appendChild(tr);
+  });
+}
+function renderTemps(temps){
+  const body = $("tempBody");
+  body.textContent = "";
+  $("tempCount").textContent = temps.length ? "×" + temps.length : "";
+  if (!temps.length){ emptyRow(body, 2, L.emptyTemps); return; }
+  temps.forEach(t => {
+    const tr = document.createElement("tr");
+    const name = document.createElement("td");
+    name.className = "name"; name.textContent = t.name; name.title = t.name;
+    const val = document.createElement("td");
+    val.className = "num";
+    const chip = document.createElement("span");
+    chip.className = "chip " + tempClass(t.value);
+    chip.textContent = t.value + " °C";
+    val.appendChild(chip);
+    tr.append(name, val);
+    body.appendChild(tr);
+  });
+}
+function renderEnv(s){
+  $("envIpmitool").textContent = s.ipmitool || "—";
+  $("envSpm").textContent = s.spm_exec ? "OK" : "missing";
+  $("envSpm").style.color = s.spm_exec ? "var(--ok)" : "var(--err)";
+  $("envDuration").textContent = (s.duration_ms || 0) + " ms";
+  $("envTs").textContent = s.ts || "—";
+  lastTs = s.ts || "";
+  paintMeta();
+}
+function paintMeta(){
+  if (!lastTs){ $("lastUpdate").textContent = "—"; return; }
+  const time = lastTs.split(" ")[1] || lastTs;
+  let text = L.updated.replace("%s", time);
+  if (CFG.auto_refresh && nextIn !== null && nextIn > 0) text += " · " + L.refreshIn.replace("%s", nextIn);
+  else if (!CFG.auto_refresh) text += " · " + L.paused;
+  $("lastUpdate").textContent = text;
+}
+function renderStatus(s){
+  lastStatus = s;
+  renderMode(s.fan_mode);
+  if (!s.fan_mode) $("modeHint").textContent = L.unknownMode;
+  const d = s.duties || [];
+  if (d[0] !== null && d[0] !== undefined){ $("duty0").value = d[0]; $("duty0Val").textContent = d[0] + "%"; }
+  if (d[1] !== null && d[1] !== undefined){ $("duty1").value = d[1]; $("duty1Val").textContent = d[1] + "%"; }
+  renderFans(s.fans || []);
+  renderTemps(s.temps || []);
+  renderEnv(s);
+
+  const banner = $("banner");
+  if (!s.supported){ banner.className = "banner warn show"; $("bannerTxt").textContent = L.unsupported; }
+  else if (!s.spm_exec){ banner.className = "banner warn show"; $("bannerTxt").textContent = L.noSpm; }
+  else banner.className = "banner";
+}
+
+/* ---------- 数据 ---------- */
+function fetchStatus(manual){
+  if (loading) return;
+  loading = true;
+  const btn = $("btnRefresh");
+  if (manual){ setPill("busy", L.loading); busy(btn, true, L.loading); }
+  api("status")
+    .then(s => { renderStatus(s); setPill("ok", L.connected); nextIn = CFG.refresh_seconds; paintMeta(); })
+    .catch(e => {
+      if (e.auth){ showAuth(); return; }
+      setPill("err", L.disconnected);
+      $("banner").className = "banner err show";
+      $("bannerTxt").textContent = e.message;
+      if (manual) toast(e.message, "err");
+    })
+    .finally(() => { loading = false; if (manual) busy(btn, false); });
+}
+
+/* ---------- 模式 & 转速 ---------- */
+const modeButtons = () => document.querySelectorAll(".mode");
+modeButtons().forEach(btn => {
+  btn.addEventListener("click", () => {
+    modeButtons().forEach(b => b.disabled = true);
+    api("set_mode", {body: {mode: btn.dataset.mode}})
+      .then(s => { renderStatus(s); nextIn = CFG.refresh_seconds; paintMeta(); toast(L.modeChanged, "ok"); })
+      .catch(e => { if (e.auth) return showAuth(); toast(e.message, "err"); fetchStatus(); })
+      .finally(() => modeButtons().forEach(b => b.disabled = false));
+  });
+});
+["duty0", "duty1"].forEach(id => {
+  $(id).addEventListener("input", () => { $(id + "Val").textContent = $(id).value + "%"; });
+});
+$("btnDuty").addEventListener("click", () => {
+  const btn = $("btnDuty");
+  const z0 = parseInt($("duty0").value, 10);
+  const z1 = parseInt($("duty1").value, 10);
+  busy(btn, true, L.updating);
+  api("set_duty", {body: {zone: 0, percent: z0}})
+    .then(() => api("set_duty", {body: {zone: 1, percent: z1}}))
+    .then(s => { renderStatus(s); nextIn = CFG.refresh_seconds; paintMeta(); toast(L.dutyChanged, "ok"); })
+    .catch(e => { if (e.auth) return showAuth(); toast(e.message, "err"); fetchStatus(); })
+    .finally(() => busy(btn, false));
+});
+
+/* ---------- 配置 ---------- */
+function fillConfig(c){
+  $("f_refresh").value = c.refresh_seconds;
+  $("f_auto").checked = !!c.auto_refresh;
+  $("f_warn").value = c.temp_warn_c;
+  $("f_crit").value = c.temp_crit_c;
+}
+function loadConfig(){
+  api("config").then(d => { CFG = d.config; fillConfig(CFG); paintMeta(); })
+    .catch(e => { if (e.auth) showAuth(); });
+}
+$("cfgForm").addEventListener("submit", ev => {
+  ev.preventDefault();
+  const btn = $("btnSave");
+  busy(btn, true, L.saving);
+  api("config_put", {body: {
+    refresh_seconds: $("f_refresh").value,
+    auto_refresh: $("f_auto").checked,
+    temp_warn_c: $("f_warn").value,
+    temp_crit_c: $("f_crit").value,
+  }}).then(d => {
+    CFG = d.config; fillConfig(CFG); nextIn = CFG.refresh_seconds; paintMeta();
+    if (lastStatus) renderTemps(lastStatus.temps || []);
+    toast(L.saved, "ok");
+  }).catch(e => { if (e.auth) return showAuth(); toast(e.message, "err"); })
+    .finally(() => busy(btn, false));
+});
+$("btnRestore").addEventListener("click", () => {
+  fillConfig({refresh_seconds: 10, auto_refresh: true, temp_warn_c: 50, temp_crit_c: 70});
+  toast(L.restored, "ok");
+});
+
+/* ---------- 定时 ---------- */
+function tick(){
+  if (nextIn === null || nextIn === undefined) return;
+  nextIn = Math.max(0, nextIn - 1);
+  paintMeta();
+  if (nextIn <= 0 && CFG.auto_refresh) fetchStatus();
+}
+setInterval(tick, 1000);
+
+/* ---------- 分页 / 刷新 ---------- */
+function activateTab(name){
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x.dataset.tab === name));
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
+  if (name === "config") loadConfig();
+}
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  activateTab(t.dataset.tab);
+  if (history.replaceState) history.replaceState(null, "", "#" + t.dataset.tab);
+}));
+$("btnRefresh").addEventListener("click", () => fetchStatus(true));
+
+/* ---------- boot ---------- */
+if (location.hash.replace("#", "") === "config") activateTab("config");
+api("config")
+  .then(d => { CFG = d.config; fillConfig(CFG); })
+  .catch(e => { if (e.auth) showAuth(); })
+  .finally(() => fetchStatus(true));
+</script>
+</body>
+</html>
