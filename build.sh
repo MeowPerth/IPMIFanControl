@@ -9,7 +9,7 @@ cd "$ROOT"
 
 PKG_NAME="ipmifancontrol"
 VERSION="1.0.0"
-BUILD="0004"
+BUILD="0006"
 # 内置 ipmitool 为 x86-64 ELF（动态链接 libc），因此只声明 x86 平台
 ARCH="apollolake avoton braswell broadwell broadwellnk broadwellnkv2 broadwellntbap bromolow cedarview denverton epyc7002 geminilake geminilakenk grantley kvmx64 purley x86_64"
 SPK_ARCH="x86_64"
@@ -65,7 +65,10 @@ CHECKSUM="$(md5sum "$WORK/package.tgz" | cut -d' ' -f1)"
 echo "==> package.tgz md5 = $CHECKSUM"
 
 # INFO 只允许 key="value" 行，不能有任何注释/空行——DSM 的 spk 解析器会因此拒绝安装
-# （dsmappname 必须等于 dsm-wrapper.js 中 Ext.define 的 AppInstance 类名）
+# （dsmappname 必须等于 dsm-wrapper.js 中 Ext.define 的 AppInstance 类名；
+#   displayname 与桌面磁贴标题 src/ui/config 的 title 用同一个字符串：
+#   DSM 会优先取 displayname_<locale>（本机按 enu 取），一旦带上英文变体，
+#   套件中心就会与桌面磁贴显示不一致，所以这里只保留单一中文名）
 cat > "$WORK/INFO" <<EOF
 package="$PKG_NAME"
 version="$VERSION-$BUILD"
@@ -74,7 +77,7 @@ description_chs="通过 IPMI 监测风扇转速与温度，并切换超微主板
 description_cht="透過 IPMI 監測風扇轉速與溫度，並切換超微主機板的四種風扇模式。"
 arch="$ARCH"
 os_min_ver="7.3-81180"
-displayname="IPMI Fan Control"
+displayname="IPMI 风扇控制"
 dsmuidir="ui"
 dsmappname="MeowPerth.IPMIFanControl.AppInstance"
 maintainer="小H酱"
